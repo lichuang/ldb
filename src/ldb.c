@@ -29,10 +29,12 @@ static int  search_global_var(lua_State *state, lua_Debug *ar,
 static void print_var(lua_State *state, int si, int depth);
 static void print_table_var(lua_State *state, int si, int depth);
 static void print_string_var(lua_State *state, int si, int depth);
+static void dump_stack(lua_State *state, int depth, int verbose); 
 
 static int help_handler(lua_State *state,  lua_Debug *ar, input_t *input);
 static int quit_handler(lua_State *state,  lua_Debug *ar, input_t *input);
 static int print_handler(lua_State *state, lua_Debug *ar, input_t *input);
+static int backtrace_handler(lua_State *state, lua_Debug *ar, input_t *input);
 
 typedef int (*handler_t)(lua_State *state, lua_Debug *ar, input_t *input);
 
@@ -47,6 +49,7 @@ ldb_command_t commands[] = {
   {"quit", &quit_handler},
   {"q",    &quit_handler},
   {"p",    &print_handler},
+  {"bt",   &backtrace_handler},
   {NULL,    NULL},
 };
 
@@ -244,7 +247,11 @@ static int
 help_handler(lua_State *state, lua_Debug *ar, input_t *input) {
   output("Lua debugger written by Lichuang(2013)\n"
          "cmd:\n"
-         "\th(help): output help info\n");
+         "\th(help): print help info\n"
+         "\tq(quit): quit ldb\n"
+         "\tp <varname>: print var value\n"
+         "\tbt: print backtrace info\n"
+         );
 
   return 0;
 }
@@ -388,6 +395,48 @@ print_string_var(lua_State *state, int si, int depth) {
 }
 
 static void
+dump_stack(lua_State *state, int depth, int verbose) {
+  lua_Debug ldb; 
+  int i;
+  const char *name, *filename;
+  /*
+  int addr_len;
+  char fn[4096];
+  */
+
+  for(i = depth; lua_getstack(state, i, &ldb) == 1; i++) {
+    lua_getinfo(state, "Slnu", &ldb);
+    name = ldb.name;
+    if( !name ) {
+      name = "";
+    }    
+    filename = ldb.source;
+
+    output("#%d: %s:'%s', '%s' line %d\n",
+           i + 1 - depth, ldb.what, name,
+           filename, ldb.currentline );
+    /*
+    addr_len = strlen(strlcpy( fn, search_path_, 4096)); 
+    strlcpy(fn + addr_len, filename + 3, 4096-addr_len ); // @./
+    */
+    /*
+    if(verbose) {
+      if( ldb.source[0]=='@' && ldb.currentline!=-1 ) {
+        const char * line = src_manager_->load_file_line( fn, ldb.currentline-1 );
+        if( line ) {
+          print( "%s\n", line );
+        } else {
+          print( "[no source available]\n" );
+        }    
+      } else {
+        print( "[no source available]\n" );
+      }
+    }
+    */
+  }
+}
+
+static void
 print_var(lua_State *state, int si, int depth) {
   switch(lua_type(state, si)) {
   case LUA_TNIL:
@@ -428,4 +477,11 @@ print_var(lua_State *state, int si, int depth) {
   default:
     break;
   }
+}
+
+static int
+backtrace_handler(lua_State *state, lua_Debug *ar, input_t *input) {
+  dump_stack(state, 0, 0);
+
+  return 0;
 }
